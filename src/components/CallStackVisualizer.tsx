@@ -3,10 +3,10 @@ import FunctionNode from './FunctionNode';
 import { CallStackNode, ExtendedXqyFunction, XqyInvocation, XqyParameter } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UploadCloud } from 'lucide-react';
-import { showError, showSuccess, showLoading } from '@/utils/toast'; // Ensure showLoading is imported
+import { UploadCloud, XCircle } from 'lucide-react'; // Added XCircle for clear button
+import { showError, showSuccess, showLoading } from '@/utils/toast';
 
-// Placeholder data - replace with actual data loading logic
+// Placeholder data - (Keep existing mock data)
 const MOCK_FUNCTIONS: ExtendedXqyFunction[] = [
   { id: 'func1', name: 'mainModule:start', filename: 'main.xqy', file: 'main.xqy', line: 10, private: false, loc: 50, numInvocations: 2, invertedLoc: 1/50, parameters: [{filename: 'main.xqy', file: 'main.xqy', function_name: 'mainModule:start', parameter: '$input', type: 'xs:string'}] },
   { id: 'func2', name: 'helper:processData', filename: 'utils.xqy', file: 'utils.xqy', line: 5, private: false, loc: 25, numInvocations: 1, invertedLoc: 1/25, parameters: [{filename: 'utils.xqy', file: 'utils.xqy', function_name: 'helper:processData', parameter: '$data', type: 'element()'}] },
@@ -42,7 +42,7 @@ const buildCallTree = (
   });
 
   const buildNode = (funcName: string, visited: Set<string> = new Set()): CallStackNode | null => {
-    if (visited.has(funcName)) { // Prevent infinite recursion for cyclic dependencies
+    if (visited.has(funcName)) {
       console.warn(`Cyclic dependency detected for function: ${funcName}. Skipping further expansion.`);
       return null; 
     }
@@ -53,7 +53,7 @@ const buildCallTree = (
 
     const childrenNames = childrenMap.get(funcName) || [];
     const children = childrenNames
-      .map(childName => buildNode(childName, new Set(visited))) // Pass a new Set for each branch
+      .map(childName => buildNode(childName, new Set(visited)))
       .filter(node => node !== null) as CallStackNode[];
     
     return { ...func, id: func.name, children };
@@ -87,20 +87,20 @@ const CallStackVisualizer: React.FC = () => {
     setCallTree(tree);
   }, [rootFunction]);
 
+  const handleSetRootByClick = (functionName: string) => {
+    setRootFunction(functionName);
+    setSearchTerm(""); // Clear search term when a new root is set by click
+    showSuccess(`Set "${functionName}" as root.`);
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const loadingToastId = showLoading("Processing SQLite file...");
       console.log("Uploaded file:", file.name);
-      // Simulate processing
       setTimeout(() => {
         showSuccess(`File ${file.name} processed (simulated). Tree updated with mock data.`);
-        // In a real app: parse file, update functions/invocations, rebuild tree
-        // e.g., setMOCK_FUNCTIONS(...); setMOCK_INVOCATIONS(...);
-        // then call:
-        // const newTree = buildCallTree(newFunctions, newInvocations, rootFunction || undefined);
-        // setCallTree(newTree);
-        // dismissToast(loadingToastId); // Assuming you have dismissToast
+        // dismissToast(loadingToastId); 
       }, 2000);
     } else {
       showError("No file selected.");
@@ -121,7 +121,7 @@ const CallStackVisualizer: React.FC = () => {
   const displayedTree = filterTree(callTree, searchTerm);
 
   return (
-    <div className="p-2 sm:p-4 max-w-6xl mx-auto"> {/* Increased max-width from 4xl to 6xl and reduced padding on small screens */}
+    <div className="p-2 sm:p-4 max-w-6xl mx-auto">
       <h1 className="text-xl sm:text-2xl font-bold mb-4 text-center">XQuery Call Stack Visualizer</h1>
       
       <div className="mb-4 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800">
@@ -133,7 +133,6 @@ const CallStackVisualizer: React.FC = () => {
             </label>
             <div className="flex items-center gap-2">
               <Input id="file-upload" type="file" accept=".sqlite,.db,.sqlite3" onChange={handleFileUpload} className="flex-grow text-sm"/>
-              {/* This button is redundant if the input itself is styled well or if we hide the default input and style the label */}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Upload XQuery project's SQLite DB.</p>
           </div>
@@ -154,14 +153,21 @@ const CallStackVisualizer: React.FC = () => {
             <label htmlFor="root-function" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Set Root Function
             </label>
-            <Input
-              id="root-function"
-              type="text"
-              placeholder="e.g., module:entryPoint"
-              value={rootFunction}
-              onChange={(e) => setRootFunction(e.target.value)}
-              className="text-sm"
-            />
+            <div className="flex items-center gap-2">
+              <Input
+                id="root-function"
+                type="text"
+                placeholder="e.g., module:entryPoint or click icon"
+                value={rootFunction}
+                onChange={(e) => setRootFunction(e.target.value)}
+                className="text-sm flex-grow"
+              />
+              {rootFunction && (
+                <Button variant="ghost" size="sm" onClick={() => { setRootFunction(""); showSuccess("Root function cleared."); }} title="Clear Root Function">
+                  <XCircle size={16} />
+                </Button>
+              )}
+            </div>
              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Define a specific tree starting point.</p>
           </div>
         </div>
@@ -169,7 +175,7 @@ const CallStackVisualizer: React.FC = () => {
 
       {displayedTree.length > 0 ? (
         displayedTree.map((node) => (
-          <FunctionNode key={node.id} node={node} level={0} />
+          <FunctionNode key={node.id} node={node} level={0} onSetAsRoot={handleSetRootByClick} />
         ))
       ) : (
         <p className="text-center text-gray-500 dark:text-gray-400 mt-8">

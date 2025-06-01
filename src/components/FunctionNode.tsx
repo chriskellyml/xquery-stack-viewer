@@ -1,20 +1,27 @@
 import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ChevronRight, GitFork, FileText, Info, Lock, Unlock } from 'lucide-react';
+import { ChevronRight, GitFork, FileText, Info, Lock, Unlock, Focus } from 'lucide-react'; // Added Focus icon
 import type { CallStackNode } from '@/types/xqy';
+import { Button } from '@/components/ui/button'; // For the clickable icon button
 
 interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
+  onSetAsRoot?: (functionName: string) => void; // Callback to set this node as root
 }
 
-const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level }) => {
+const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot }) => {
   const hasParameters = node.parameters && node.parameters.length > 0;
   const hasChildren = node.children && node.children.length > 0;
   const isExpandable = hasParameters || hasChildren;
 
-  const indentationClass = `pl-${level * 2}`; // e.g., pl-0, pl-2, pl-4 ...
+  const indentationClass = `pl-${level * 2}`;
+
+  const handleSetRootClick = (event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent accordion from toggling
+    onSetAsRoot?.(node.name);
+  };
 
   return (
     <Card className={`mb-1 border-l-2 ${level % 2 === 0 ? 'border-blue-400' : 'border-green-400'}`}>
@@ -25,15 +32,22 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level }) => {
               {isExpandable ? (
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
               ) : (
-                <span className="w-4 h-4 shrink-0"></span> // Placeholder for alignment
+                <span className="w-4 h-4 shrink-0"></span> 
               )}
+              
+              {onSetAsRoot && (
+                <Button variant="ghost" size="icon" className="h-5 w-5 p-0 mr-1 shrink-0" onClick={handleSetRootClick} title={`Set ${node.name} as root`}>
+                  <Focus size={12} className="text-blue-600 hover:text-blue-800" />
+                </Button>
+              )}
+
               <GitFork className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500 shrink-0" />
               <span className="font-medium truncate" title={node.name}>{node.name}</span>
               {node.private ? <Lock size={12} className="text-amber-600 shrink-0" title="Private Function"/> : <Unlock size={12} className="text-green-600 shrink-0" title="Public Function"/>}
               <span className="text-gray-500 truncate hidden md:inline" title={`Module: ${node.filename}`}>[{node.filename}]</span>
               <span className="text-gray-400 truncate hidden sm:inline" title={`Location: ${node.file}:${node.line}`}>({node.file}:{node.line})</span>
               
-              <span className="flex-grow"></span> {/* Spacer */}
+              <span className="flex-grow"></span> 
               
               <span className="text-muted-foreground whitespace-nowrap mr-1">LOC: {node.loc}</span>
               <span className="text-muted-foreground whitespace-nowrap">Calls: {node.numInvocations}</span>
@@ -56,7 +70,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level }) => {
                   <div>
                     <h4 className="text-xs font-semibold mb-0.5 mt-1 flex items-center"><FileText size={12} className="mr-1 text-green-500" />Callees:</h4>
                     {node.children.map((child) => (
-                      <FunctionNode key={child.id} node={child} level={level + 1} />
+                      <FunctionNode key={child.id} node={child} level={level + 1} onSetAsRoot={onSetAsRoot} />
                     ))}
                   </div>
                 )}
