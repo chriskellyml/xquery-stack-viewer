@@ -3,10 +3,10 @@ import FunctionNode from './FunctionNode';
 import { CallStackNode, ExtendedXqyFunction, XqyInvocation, XqyParameter } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UploadCloud, XCircle } from 'lucide-react'; // Added XCircle for clear button
+import { UploadCloud, XCircle, ChevronsUpDown, ChevronsDownUp } from 'lucide-react';
 import { showError, showSuccess, showLoading } from '@/utils/toast';
 
-// Placeholder data - (Keep existing mock data)
+// (Keep existing MOCK_FUNCTIONS and MOCK_INVOCATIONS)
 const MOCK_FUNCTIONS: ExtendedXqyFunction[] = [
   { id: 'func1', name: 'mainModule:start', filename: 'main.xqy', file: 'main.xqy', line: 10, private: false, loc: 50, numInvocations: 2, invertedLoc: 1/50, parameters: [{filename: 'main.xqy', file: 'main.xqy', function_name: 'mainModule:start', parameter: '$input', type: 'xs:string'}] },
   { id: 'func2', name: 'helper:processData', filename: 'utils.xqy', file: 'utils.xqy', line: 5, private: false, loc: 25, numInvocations: 1, invertedLoc: 1/25, parameters: [{filename: 'utils.xqy', file: 'utils.xqy', function_name: 'helper:processData', parameter: '$data', type: 'element()'}] },
@@ -25,6 +25,7 @@ const MOCK_INVOCATIONS: XqyInvocation[] = [
   { filename: 'deep.xqy', file: 'deep.xqy', caller: 'deeply:nested:call:one', invoked_module: 'deep.xqy', invoked_function: 'deeply:nested:call:two' },
   { filename: 'deep.xqy', file: 'deep.xqy', caller: 'deeply:nested:call:two', invoked_module: 'deep.xqy', invoked_function: 'deeply:nested:call:three' },
 ];
+
 
 const buildCallTree = (
   functions: ExtendedXqyFunction[],
@@ -76,20 +77,34 @@ const buildCallTree = (
   return rootNodes;
 };
 
+const getAllNodeIdsRecursive = (nodes: CallStackNode[]): string[] => {
+  let ids: string[] = [];
+  for (const node of nodes) {
+    ids.push(node.id);
+    if (node.children && node.children.length > 0) {
+      ids = ids.concat(getAllNodeIdsRecursive(node.children));
+    }
+  }
+  return ids;
+};
 
 const CallStackVisualizer: React.FC = () => {
   const [callTree, setCallTree] = useState<CallStackNode[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [rootFunction, setRootFunction] = useState<string>("");
+  const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const tree = buildCallTree(MOCK_FUNCTIONS, MOCK_INVOCATIONS, rootFunction || undefined);
     setCallTree(tree);
+    // Optionally, clear openNodes when rootFunction or data changes, or decide to preserve state
+    // setOpenNodes(new Set()); 
   }, [rootFunction]);
 
   const handleSetRootByClick = (functionName: string) => {
     setRootFunction(functionName);
-    setSearchTerm(""); // Clear search term when a new root is set by click
+    setSearchTerm("");
+    setOpenNodes(new Set()); // Collapse all when new root is set
     showSuccess(`Set "${functionName}" as root.`);
   };
 
@@ -100,6 +115,7 @@ const CallStackVisualizer: React.FC = () => {
       console.log("Uploaded file:", file.name);
       setTimeout(() => {
         showSuccess(`File ${file.name} processed (simulated). Tree updated with mock data.`);
+        setOpenNodes(new Set()); // Reset open state on new data
         // dismissToast(loadingToastId); 
       }, 2000);
     } else {
@@ -120,23 +136,44 @@ const CallStackVisualizer: React.FC = () => {
 
   const displayedTree = filterTree(callTree, searchTerm);
 
+  const handleToggleNode = (nodeId: string) => {
+    setOpenNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(nodeId)) {
+        newSet.delete(nodeId);
+      } else {
+        newSet.add(nodeId);
+      }
+      return newSet;
+    });
+  };
+
+  const expandAllVisibleNodes = () => {
+    const allIds = getAllNodeIdsRecursive(displayedTree);
+    setOpenNodes(new Set(allIds));
+    showSuccess("Expanded all visible nodes.");
+  };
+
+  const collapseAllNodes = () => {
+    setOpenNodes(new Set());
+    showSuccess("Collapsed all nodes.");
+  };
+
   return (
     <div className="p-2 sm:p-4 max-w-6xl mx-auto">
       <h1 className="text-xl sm:text-2xl font-bold mb-4 text-center">XQuery Call Stack Visualizer</h1>
       
       <div className="mb-4 p-3 border rounded-lg bg-gray-50 dark:bg-gray-800">
         <h2 className="text-md sm:text-lg font-semibold mb-2">Controls</h2>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-grow">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+          <div>
             <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Upload SQLite DB
             </label>
-            <div className="flex items-center gap-2">
-              <Input id="file-upload" type="file" accept=".sqlite,.db,.sqlite3" onChange={handleFileUpload} className="flex-grow text-sm"/>
-            </div>
+            <Input id="file-upload" type="file" accept=".sqlite,.db,.sqlite3" onChange={handleFileUpload} className="text-sm"/>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Upload XQuery project's SQLite DB.</p>
           </div>
-          <div className="flex-grow">
+          <div>
             <label htmlFor="search-term" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Search Functions
             </label>
@@ -149,7 +186,7 @@ const CallStackVisualizer: React.FC = () => {
               className="text-sm"
             />
           </div>
-          <div className="flex-grow">
+          <div>
             <label htmlFor="root-function" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Set Root Function
             </label>
@@ -163,7 +200,7 @@ const CallStackVisualizer: React.FC = () => {
                 className="text-sm flex-grow"
               />
               {rootFunction && (
-                <Button variant="ghost" size="sm" onClick={() => { setRootFunction(""); showSuccess("Root function cleared."); }} title="Clear Root Function">
+                <Button variant="ghost" size="sm" onClick={() => { setRootFunction(""); setOpenNodes(new Set()); showSuccess("Root function cleared."); }} title="Clear Root Function">
                   <XCircle size={16} />
                 </Button>
               )}
@@ -171,11 +208,26 @@ const CallStackVisualizer: React.FC = () => {
              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Define a specific tree starting point.</p>
           </div>
         </div>
+        <div className="flex flex-wrap gap-2 items-center border-t pt-3 mt-3">
+            <Button onClick={expandAllVisibleNodes} variant="outline" size="sm">
+                <ChevronsDownUp size={16} className="mr-2" /> Expand All Visible
+            </Button>
+            <Button onClick={collapseAllNodes} variant="outline" size="sm">
+                <ChevronsUpDown size={16} className="mr-2" /> Collapse All
+            </Button>
+        </div>
       </div>
 
       {displayedTree.length > 0 ? (
         displayedTree.map((node) => (
-          <FunctionNode key={node.id} node={node} level={0} onSetAsRoot={handleSetRootByClick} />
+          <FunctionNode 
+            key={node.id} 
+            node={node} 
+            level={0} 
+            onSetAsRoot={handleSetRootByClick}
+            openNodes={openNodes}
+            onToggleNode={handleToggleNode}
+          />
         ))
       ) : (
         <p className="text-center text-gray-500 dark:text-gray-400 mt-8">

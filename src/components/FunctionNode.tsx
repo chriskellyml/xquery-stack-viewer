@@ -1,35 +1,59 @@
 import React from 'react';
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ChevronRight, GitFork, FileText, Info, Lock, Unlock, Focus } from 'lucide-react'; // Added Focus icon
+import { ChevronRight, GitFork, FileText, Info, Lock, Unlock, Focus } from 'lucide-react';
 import type { CallStackNode } from '@/types/xqy';
-import { Button } from '@/components/ui/button'; // For the clickable icon button
+import { Button } from '@/components/ui/button';
 
 interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
-  onSetAsRoot?: (functionName: string) => void; // Callback to set this node as root
+  onSetAsRoot?: (functionName: string) => void;
+  openNodes: Set<string>; // Set of IDs for currently open nodes
+  onToggleNode: (nodeId: string) => void; // Function to toggle a node's open state
 }
 
-const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot }) => {
+const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, openNodes, onToggleNode }) => {
   const hasParameters = node.parameters && node.parameters.length > 0;
   const hasChildren = node.children && node.children.length > 0;
-  const isExpandable = hasParameters || hasChildren;
+  // An item is expandable if it has parameters OR children that would be shown inside its accordion content
+  const isInternallyExpandable = hasParameters || hasChildren; 
 
   const indentationClass = `pl-${level * 2}`;
 
   const handleSetRootClick = (event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent accordion from toggling
+    event.stopPropagation(); 
     onSetAsRoot?.(node.name);
   };
 
+  // The Accordion's value prop expects an array of strings for type="multiple" or a string for type="single".
+  // Since each FunctionNode has its own Accordion controlling one AccordionItem,
+  // value will be the item's value if open, or undefined if closed.
+  const accordionValue = openNodes.has(node.id) ? `item-${node.id}` : undefined;
+
   return (
     <Card className={`mb-1 border-l-2 ${level % 2 === 0 ? 'border-blue-400' : 'border-green-400'}`}>
-      <Accordion type="single" collapsible className="w-full" disabled={!isExpandable}>
+      <Accordion 
+        type="single" 
+        collapsible 
+        className="w-full" 
+        value={accordionValue}
+        onValueChange={() => {
+          // Only toggle if it's internally expandable. Otherwise, clicking does nothing for the accordion.
+          if (isInternallyExpandable) {
+            onToggleNode(node.id);
+          }
+        }}
+        disabled={!isInternallyExpandable} // Disable accordion if no content to expand
+      >
         <AccordionItem value={`item-${node.id}`} className="border-b-0">
-          <AccordionTrigger className={`hover:no-underline p-2 ${indentationClass} ${!isExpandable ? 'cursor-default' : ''}`}>
+          <AccordionTrigger 
+            className={`hover:no-underline p-2 ${indentationClass} ${!isInternallyExpandable ? 'cursor-default' : ''}`}
+            // If not internally expandable, clicking the trigger shouldn't try to toggle
+            onClick={!isInternallyExpandable ? (e) => e.preventDefault() : undefined}
+          >
             <div className="flex items-center space-x-1.5 w-full text-xs sm:text-sm">
-              {isExpandable ? (
+              {isInternallyExpandable ? ( // Show chevron only if there's something to expand within this node
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
               ) : (
                 <span className="w-4 h-4 shrink-0"></span> 
@@ -53,7 +77,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot })
               <span className="text-muted-foreground whitespace-nowrap">Calls: {node.numInvocations}</span>
             </div>
           </AccordionTrigger>
-          {isExpandable && (
+          {isInternallyExpandable && ( // Content is only rendered if it's expandable
             <AccordionContent className={`p-2 pt-0 ${indentationClass}`}>
               <div className="pl-4 border-l border-dashed ml-2 mt-1"> 
                 {hasParameters && (
@@ -70,7 +94,14 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot })
                   <div>
                     <h4 className="text-xs font-semibold mb-0.5 mt-1 flex items-center"><FileText size={12} className="mr-1 text-green-500" />Callees:</h4>
                     {node.children.map((child) => (
-                      <FunctionNode key={child.id} node={child} level={level + 1} onSetAsRoot={onSetAsRoot} />
+                      <FunctionNode 
+                        key={child.id} 
+                        node={child} 
+                        level={level + 1} 
+                        onSetAsRoot={onSetAsRoot}
+                        openNodes={openNodes}
+                        onToggleNode={onToggleNode} 
+                      />
                     ))}
                   </div>
                 )}
