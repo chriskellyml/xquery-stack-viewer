@@ -3,7 +3,7 @@ import FunctionNode from './FunctionNode';
 import { CallStackNode, ExtendedXqyFunction, XqyInvocation, XqyParameter } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UploadCloud, XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle } from 'lucide-react'; // Added ArrowUpCircle
+import { UploadCloud, XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
 
 // (Keep existing MOCK_FUNCTIONS and MOCK_INVOCATIONS)
@@ -94,8 +94,6 @@ const CallStackVisualizer: React.FC = () => {
   const [rootFunction, setRootFunction] = useState<string>("");
   const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
 
-  // Using MOCK_FUNCTIONS and MOCK_INVOCATIONS directly as our source of truth for now
-  // In a real scenario, these would be fetched or loaded from the DB
   const currentFunctions = MOCK_FUNCTIONS;
   const currentInvocations = MOCK_INVOCATIONS;
 
@@ -116,12 +114,10 @@ const CallStackVisualizer: React.FC = () => {
     if (file) {
       const loadingToastId = showLoading("Processing SQLite file...");
       console.log("Uploaded file:", file.name);
-      // Simulate processing for now
       setTimeout(() => {
-        // In a real app, you'd parse the DB and update currentFunctions/currentInvocations
         showSuccess(`File ${file.name} processed (simulated). Tree updated with mock data.`);
-        setRootFunction(""); // Reset root
-        setOpenNodes(new Set()); // Reset open state
+        setRootFunction(""); 
+        setOpenNodes(new Set()); 
         dismissToast(loadingToastId); 
       }, 2000);
     } else {
@@ -177,8 +173,8 @@ const CallStackVisualizer: React.FC = () => {
 
     if (parentInvocation && parentInvocation.caller) {
       setRootFunction(parentInvocation.caller);
-      setSearchTerm(""); // Clear search
-      setOpenNodes(new Set()); // Collapse nodes for the new view
+      setSearchTerm(""); 
+      setOpenNodes(new Set()); 
       showSuccess(`Stepped up. New root: "${parentInvocation.caller}".`);
     } else {
       showError(`"${rootFunction}" is an entry point or has no known caller in the data.`);
@@ -250,11 +246,12 @@ const CallStackVisualizer: React.FC = () => {
       </div>
 
       {displayedTree.length > 0 ? (
-        displayedTree.map((node) => (
+        displayedTree.map((node, index) => (
           <FunctionNode 
             key={node.id} 
             node={node} 
             level={0} 
+            levelPrefix={`${index + 1}.`} // Initial prefix for root nodes
             onSetAsRoot={handleSetRootByClick}
             openNodes={openNodes}
             onToggleNode={handleToggleNode}

@@ -8,15 +8,15 @@ import { Button } from '@/components/ui/button';
 interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
+  levelPrefix: string; // New prop for hierarchical numbering
   onSetAsRoot?: (functionName: string) => void;
-  openNodes: Set<string>; // Set of IDs for currently open nodes
-  onToggleNode: (nodeId: string) => void; // Function to toggle a node's open state
+  openNodes: Set<string>;
+  onToggleNode: (nodeId: string) => void;
 }
 
-const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, openNodes, onToggleNode }) => {
+const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, onSetAsRoot, openNodes, onToggleNode }) => {
   const hasParameters = node.parameters && node.parameters.length > 0;
   const hasChildren = node.children && node.children.length > 0;
-  // An item is expandable if it has parameters OR children that would be shown inside its accordion content
   const isInternallyExpandable = hasParameters || hasChildren; 
 
   const indentationClass = `pl-${level * 2}`;
@@ -26,9 +26,6 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, o
     onSetAsRoot?.(node.name);
   };
 
-  // The Accordion's value prop expects an array of strings for type="multiple" or a string for type="single".
-  // Since each FunctionNode has its own Accordion controlling one AccordionItem,
-  // value will be the item's value if open, or undefined if closed.
   const accordionValue = openNodes.has(node.id) ? `item-${node.id}` : undefined;
 
   return (
@@ -39,26 +36,26 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, o
         className="w-full" 
         value={accordionValue}
         onValueChange={() => {
-          // Only toggle if it's internally expandable. Otherwise, clicking does nothing for the accordion.
           if (isInternallyExpandable) {
             onToggleNode(node.id);
           }
         }}
-        disabled={!isInternallyExpandable} // Disable accordion if no content to expand
+        disabled={!isInternallyExpandable}
       >
         <AccordionItem value={`item-${node.id}`} className="border-b-0">
           <AccordionTrigger 
             className={`hover:no-underline p-2 ${indentationClass} ${!isInternallyExpandable ? 'cursor-default' : ''}`}
-            // If not internally expandable, clicking the trigger shouldn't try to toggle
             onClick={!isInternallyExpandable ? (e) => e.preventDefault() : undefined}
           >
             <div className="flex items-center space-x-1.5 w-full text-xs sm:text-sm">
-              {isInternallyExpandable ? ( // Show chevron only if there's something to expand within this node
+              {isInternallyExpandable ? (
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200" />
               ) : (
                 <span className="w-4 h-4 shrink-0"></span> 
               )}
               
+              <span className="font-semibold text-gray-600 dark:text-gray-400 mr-1 shrink-0" style={{ minWidth: `${level * 0.5 + 1}ch` }}>{levelPrefix}</span>
+
               {onSetAsRoot && (
                 <Button variant="ghost" size="icon" className="h-5 w-5 p-0 mr-1 shrink-0" onClick={handleSetRootClick} title={`Set ${node.name} as root`}>
                   <Focus size={12} className="text-blue-600 hover:text-blue-800" />
@@ -77,7 +74,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, o
               <span className="text-muted-foreground whitespace-nowrap">Calls: {node.numInvocations}</span>
             </div>
           </AccordionTrigger>
-          {isInternallyExpandable && ( // Content is only rendered if it's expandable
+          {isInternallyExpandable && (
             <AccordionContent className={`p-2 pt-0 ${indentationClass}`}>
               <div className="pl-4 border-l border-dashed ml-2 mt-1"> 
                 {hasParameters && (
@@ -93,11 +90,12 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, onSetAsRoot, o
                 {hasChildren && (
                   <div>
                     <h4 className="text-xs font-semibold mb-0.5 mt-1 flex items-center"><FileText size={12} className="mr-1 text-green-500" />Callees:</h4>
-                    {node.children.map((child) => (
+                    {node.children.map((child, index) => (
                       <FunctionNode 
                         key={child.id} 
                         node={child} 
                         level={level + 1} 
+                        levelPrefix={`${levelPrefix}${index + 1}.`} // Calculate prefix for child
                         onSetAsRoot={onSetAsRoot}
                         openNodes={openNodes}
                         onToggleNode={onToggleNode} 
