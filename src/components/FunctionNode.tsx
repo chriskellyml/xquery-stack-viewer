@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
-  levelPrefix: string; // New prop for hierarchical numbering
-  onSetAsRoot?: (functionName: string) => void;
+  levelPrefix: string;
+  onSetAsRoot?: (functionName: string, currentFullPrefix: string) => void; // Modified signature
   openNodes: Set<string>;
   onToggleNode: (nodeId: string) => void;
 }
@@ -23,7 +23,9 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
 
   const handleSetRootClick = (event: React.MouseEvent) => {
     event.stopPropagation(); 
-    onSetAsRoot?.(node.name);
+    if (onSetAsRoot) {
+      onSetAsRoot(node.name, levelPrefix); // Pass the current levelPrefix
+    }
   };
 
   const accordionValue = openNodes.has(node.id) ? `item-${node.id}` : undefined;
@@ -95,7 +97,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
                         key={child.id} 
                         node={child} 
                         level={level + 1} 
-                        levelPrefix={`${levelPrefix}${index + 1}.`} // Calculate prefix for child
+                        levelPrefix={`${levelPrefix}${index + 1}.`} 
                         onSetAsRoot={onSetAsRoot}
                         openNodes={openNodes}
                         onToggleNode={onToggleNode} 

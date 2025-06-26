@@ -93,6 +93,7 @@ const CallStackVisualizer: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [rootFunction, setRootFunction] = useState<string>("");
   const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
+  const [persistedRootPrefix, setPersistedRootPrefix] = useState<string | null>(null); // New state
 
   const currentFunctions = MOCK_FUNCTIONS;
   const currentInvocations = MOCK_INVOCATIONS;
@@ -100,13 +101,25 @@ const CallStackVisualizer: React.FC = () => {
   useEffect(() => {
     const tree = buildCallTree(currentFunctions, currentInvocations, rootFunction || undefined);
     setCallTree(tree);
+    // If we are clearing the root function, also clear the persisted prefix
+    if (!rootFunction) {
+        setPersistedRootPrefix(null);
+    }
   }, [rootFunction, currentFunctions, currentInvocations]);
 
-  const handleSetRootByClick = (functionName: string) => {
+  const handleSetRootByClick = (functionName: string, clickedNodePrefix: string) => {
     setRootFunction(functionName);
+    setPersistedRootPrefix(clickedNodePrefix); // Store the prefix of the clicked node
     setSearchTerm("");
     setOpenNodes(new Set()); 
-    showSuccess(`Set "${functionName}" as root.`);
+    showSuccess(`Set "${functionName}" as root. Prefix: ${clickedNodePrefix}`);
+  };
+
+  const handleClearRoot = () => {
+    setRootFunction("");
+    setPersistedRootPrefix(null); // Clear persisted prefix
+    setOpenNodes(new Set());
+    showSuccess("Root function cleared.");
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -117,6 +130,7 @@ const CallStackVisualizer: React.FC = () => {
       setTimeout(() => {
         showSuccess(`File ${file.name} processed (simulated). Tree updated with mock data.`);
         setRootFunction(""); 
+        setPersistedRootPrefix(null); // Clear persisted prefix on new file upload
         setOpenNodes(new Set()); 
         dismissToast(loadingToastId); 
       }, 2000);
@@ -172,7 +186,12 @@ const CallStackVisualizer: React.FC = () => {
     );
 
     if (parentInvocation && parentInvocation.caller) {
+      // To correctly set the prefix for the new root (the parent), we'd ideally find it in the full tree.
+      // For simplicity now, stepping up will reset the prefix to "1." for the new parent root.
+      // A more complex solution would involve rebuilding/traversing part of the full tree to find the parent's original prefix.
+      // For now, we'll clear the persisted prefix when stepping up, so it defaults to "1.".
       setRootFunction(parentInvocation.caller);
+      setPersistedRootPrefix(null); // Reset prefix when stepping up, new root will be "1."
       setSearchTerm(""); 
       setOpenNodes(new Set()); 
       showSuccess(`Stepped up. New root: "${parentInvocation.caller}".`);
@@ -220,11 +239,14 @@ const CallStackVisualizer: React.FC = () => {
                 type="text"
                 placeholder="e.g., module:entryPoint or click icon"
                 value={rootFunction}
-                onChange={(e) => setRootFunction(e.target.value)}
+                onChange={(e) => {
+                    setRootFunction(e.target.value);
+                    if (!e.target.value) setPersistedRootPrefix(null); // Clear prefix if root input is manually cleared
+                }}
                 className="text-sm flex-grow"
               />
               {rootFunction && (
-                <Button variant="ghost" size="icon" onClick={() => { setRootFunction(""); setOpenNodes(new Set()); showSuccess("Root function cleared."); }} title="Clear Root Function" className="p-1">
+                <Button variant="ghost" size="icon" onClick={handleClearRoot} title="Clear Root Function" className="p-1">
                   <XCircle size={16} />
                 </Button>
               )}
@@ -246,17 +268,28 @@ const CallStackVisualizer: React.FC = () => {
       </div>
 
       {displayedTree.length > 0 ? (
-        displayedTree.map((node, index) => (
-          <FunctionNode 
-            key={node.id} 
-            node={node} 
-            level={0} 
-            levelPrefix={`${index + 1}.`} // Initial prefix for root nodes
-            onSetAsRoot={handleSetRootByClick}
-            openNodes={openNodes}
-            onToggleNode={handleToggleNode}
-          />
-        ))
+        displayedTree.map((node, index) => {
+          let initialPrefix;
+          // If we have a single root node (because rootFunction is set and matches the node) 
+          // AND we have a persisted prefix for it.
+          if (rootFunction && persistedRootPrefix && displayedTree.length === 1 && node.name === rootFunction) {
+            initialPrefix = persistedRootPrefix;
+          } else {
+            // Default for multiple top-level nodes or if no specific root/prefix is persisted for the current view
+            initialPrefix = `${index + 1}.`; 
+          }
+          return (
+            <FunctionNode 
+              key={node.id} 
+              node={node} 
+              level={0} 
+              levelPrefix={initialPrefix}
+              onSetAsRoot={handleSetRootByClick}
+              openNodes={openNodes}
+              onToggleNode={handleToggleNode}
+            />
+          );
+        })
       ) : (
         <p className="text-center text-gray-500 dark:text-gray-400 mt-8">
           {searchTerm ? "No functions match your search." : (rootFunction ? "Root function not found or has no callees." : "No call stack data. Upload DB or clear filters.")}
