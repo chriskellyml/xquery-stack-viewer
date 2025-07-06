@@ -1,31 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import FunctionNode from './FunctionNode';
-import { CallStackNode, ExtendedXqyFunction, XqyInvocation, XqyParameter } from '@/types/xqy';
+import { CallStackNode, ExtendedXqyFunction, XqyInvocation } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { UploadCloud, XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle } from 'lucide-react';
+import { UploadCloud, XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle, RefreshCw } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
-
-// (Keep existing MOCK_FUNCTIONS and MOCK_INVOCATIONS)
-const MOCK_FUNCTIONS: ExtendedXqyFunction[] = [
-  { id: 'func1', name: 'mainModule:start', filename: 'main.xqy', file: 'main.xqy', line: 10, private: false, loc: 50, numInvocations: 2, invertedLoc: 1/50, parameters: [{filename: 'main.xqy', file: 'main.xqy', function_name: 'mainModule:start', parameter: '$input', type: 'xs:string'}] },
-  { id: 'func2', name: 'helper:processData', filename: 'utils.xqy', file: 'utils.xqy', line: 5, private: false, loc: 25, numInvocations: 1, invertedLoc: 1/25, parameters: [{filename: 'utils.xqy', file: 'utils.xqy', function_name: 'helper:processData', parameter: '$data', type: 'element()'}] },
-  { id: 'func3', name: 'helper:formatOutput', filename: 'utils.xqy', file: 'utils.xqy', line: 30, private: true, loc: 15, numInvocations: 1, invertedLoc: 1/15 },
-  { id: 'func4', name: 'anotherModule:subProcess', filename: 'another.xqy', file: 'another.xqy', line: 8, private: false, loc: 40, numInvocations: 0, invertedLoc: 1/40 },
-  { id: 'func5', name: 'deeply:nested:call:one', filename: 'deep.xqy', file: 'deep.xqy', line: 1, private: false, loc: 5, numInvocations: 1, invertedLoc: 1/5 },
-  { id: 'func6', name: 'deeply:nested:call:two', filename: 'deep.xqy', file: 'deep.xqy', line: 10, private: false, loc: 5, numInvocations: 1, invertedLoc: 1/5 },
-  { id: 'func7', name: 'deeply:nested:call:three', filename: 'deep.xqy', file: 'deep.xqy', line: 20, private: false, loc: 5, numInvocations: 0, invertedLoc: 1/5 },
-];
-
-const MOCK_INVOCATIONS: XqyInvocation[] = [
-  { filename: 'main.xqy', file: 'main.xqy', caller: 'mainModule:start', invoked_module: 'utils.xqy', invoked_function: 'helper:processData' },
-  { filename: 'main.xqy', file: 'main.xqy', caller: 'mainModule:start', invoked_module: 'another.xqy', invoked_function: 'anotherModule:subProcess' },
-  { filename: 'utils.xqy', file: 'utils.xqy', caller: 'helper:processData', invoked_module: 'utils.xqy', invoked_function: 'helper:formatOutput' },
-  { filename: 'another.xqy', file: 'another.xqy', caller: 'anotherModule:subProcess', invoked_module: 'deep.xqy', invoked_function: 'deeply:nested:call:one' },
-  { filename: 'deep.xqy', file: 'deep.xqy', caller: 'deeply:nested:call:one', invoked_module: 'deep.xqy', invoked_function: 'deeply:nested:call:two' },
-  { filename: 'deep.xqy', file: 'deep.xqy', caller: 'deeply:nested:call:two', invoked_module: 'deep.xqy', invoked_function: 'deeply:nested:call:three' },
-];
-
+import { fetchCallStackData, CallStackData } from '@/utils/api'; // Import the fetch function and type
 
 const buildCallTree = (
   functions: ExtendedXqyFunction[],
@@ -68,7 +48,7 @@ const buildCallTree = (
     const allInvokedFunctions = new Set(invocations.map(inv => inv.invoked_function));
     const entryPointNames = functions
       .map(f => f.name)
-      .filter(name => !allInvokedFunctions.has(name));
+      .filter(name => !allInvokedFunctions.has(name) && functionMap.has(name)); // Ensure function exists
     
     rootNodes = entryPointNames
       .map(name => buildNode(name))
@@ -89,22 +69,61 @@ const getAllNodeIdsRecursive = (nodes: CallStackNode[]): string[] => {
 };
 
 const CallStackVisualizer: React.FC = () => {
+  const [allFunctions, setAllFunctions] = useState<ExtendedXqyFunction[]>([]);
+  const [allInvocations, setAllInvocations] = useState<XqyInvocation[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  
   const [callTree, setCallTree] = useState<CallStackNode[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [rootFunction, setRootFunction] = useState<string>("");
   const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
   const [persistedRootPrefix, setPersistedRootPrefix] = useState<string | null>(null); 
 
-  const currentFunctions = MOCK_FUNCTIONS;
-  const currentInvocations = MOCK_INVOCATIONS;
+  const loadData = useCallback(async (showToast: boolean = true) => {
+    let loadingToastId: string | number | undefined;
+    if (showToast) {
+        loadingToastId = showLoading("Fetching call stack data...");
+    }
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data: CallStackData = await fetchCallStackData();
+      setAllFunctions(data.functions);
+      setAllInvocations(data.invocations);
+      if (showToast) {
+        showSuccess("Call stack data loaded successfully.");
+      }
+    } catch (error) {
+      console.error("Failed to fetch call stack data:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      setFetchError(errorMessage);
+      if (showToast) {
+        showError(`Failed to load data: ${errorMessage}`);
+      }
+    } finally {
+      setIsLoading(false);
+      if (loadingToastId && showToast) {
+        dismissToast(loadingToastId as string);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    const tree = buildCallTree(currentFunctions, currentInvocations, rootFunction || undefined);
-    setCallTree(tree);
-    if (!rootFunction) {
-        setPersistedRootPrefix(null);
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (allFunctions.length > 0 || allInvocations.length > 0) {
+      const tree = buildCallTree(allFunctions, allInvocations, rootFunction || undefined);
+      setCallTree(tree);
+      if (!rootFunction) {
+          setPersistedRootPrefix(null);
+      }
+    } else {
+      setCallTree([]); // Ensure tree is empty if no data
     }
-  }, [rootFunction, currentFunctions, currentInvocations]);
+  }, [rootFunction, allFunctions, allInvocations]);
 
   const handleSetRootByClick = (functionName: string, clickedNodePrefix: string) => {
     setRootFunction(functionName);
@@ -124,18 +143,20 @@ const CallStackVisualizer: React.FC = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      const loadingToastId = showLoading("Processing SQLite file...");
-      console.log("Uploaded file:", file.name);
-      setTimeout(() => {
-        showSuccess(`File ${file.name} processed (simulated). Tree updated with mock data.`);
-        setRootFunction(""); 
-        setPersistedRootPrefix(null); 
-        setOpenNodes(new Set()); 
-        dismissToast(loadingToastId); 
-      }, 2000);
+      const loadingToastId = showLoading(`Simulating processing of ${file.name}...`);
+      console.log("Uploaded file (simulated):", file.name);
+      // Simulate processing and then reload mock data
+      await loadData(false); // Reload data, toast handled by this function
+      dismissToast(loadingToastId as string);
+      showSuccess(`Simulated processing of ${file.name} complete. Displaying mock data.`);
+      setRootFunction(""); 
+      setPersistedRootPrefix(null); 
+      setOpenNodes(new Set()); 
     } else {
       showError("No file selected.");
     }
+    // Reset file input to allow re-uploading the same file
+    event.target.value = "";
   };
   
   const filterTree = (nodes: CallStackNode[], term: string): CallStackNode[] => {
@@ -180,7 +201,7 @@ const CallStackVisualizer: React.FC = () => {
       return;
     }
 
-    const parentInvocation = currentInvocations.find(
+    const parentInvocation = allInvocations.find(
       (inv) => inv.invoked_function === rootFunction
     );
 
@@ -189,16 +210,12 @@ const CallStackVisualizer: React.FC = () => {
       let newPersistedPrefix: string | null = null;
 
       if (persistedRootPrefix) {
-        // Ensure we are looking for a dot before the last character (the trailing dot of the prefix)
         const prefixWithoutTrailingDot = persistedRootPrefix.endsWith('.') ? persistedRootPrefix.substring(0, persistedRootPrefix.length - 1) : persistedRootPrefix;
         const lastDotIndex = prefixWithoutTrailingDot.lastIndexOf('.');
         
         if (lastDotIndex !== -1) {
           newPersistedPrefix = prefixWithoutTrailingDot.substring(0, lastDotIndex + 1);
         } else {
-          // Current root was a top-level item (e.g., "1."). Its parent is also top-level.
-          // For now, its prefix will become "1." as it's the new single root.
-          // A more complex solution would find its original index among siblings.
           newPersistedPrefix = null; 
         }
       }
@@ -213,7 +230,27 @@ const CallStackVisualizer: React.FC = () => {
     }
   };
   
-  const canStepUp = rootFunction && currentInvocations.some(inv => inv.invoked_function === rootFunction);
+  const canStepUp = rootFunction && allInvocations.some(inv => inv.invoked_function === rootFunction);
+
+  if (isLoading && !callTree.length) { // Show initial loading state more prominently
+    return (
+      <div className="p-2 sm:p-4 max-w-6xl mx-auto text-center">
+        <RefreshCw className="h-12 w-12 animate-spin text-blue-500 mx-auto my-8" />
+        <p className="text-lg text-gray-600 dark:text-gray-400">Loading Call Stack Data...</p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="p-2 sm:p-4 max-w-6xl mx-auto text-center text-red-500">
+        <p className="text-lg">Error loading data: {fetchError}</p>
+        <Button onClick={() => loadData()} variant="outline" className="mt-4">
+          <RefreshCw size={16} className="mr-2" /> Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-2 sm:p-4 max-w-6xl mx-auto">
@@ -224,10 +261,10 @@ const CallStackVisualizer: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
           <div>
             <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Upload SQLite DB
+              Upload SQLite DB (Simulated)
             </label>
             <Input id="file-upload" type="file" accept=".sqlite,.db,.sqlite3" onChange={handleFileUpload} className="text-sm"/>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Upload XQuery project's SQLite DB.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Simulates processing & reloads mock data.</p>
           </div>
           <div>
             <label htmlFor="search-term" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -268,14 +305,17 @@ const CallStackVisualizer: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 items-center border-t pt-3 mt-3">
-            <Button onClick={expandAllVisibleNodes} variant="outline" size="sm">
+            <Button onClick={expandAllVisibleNodes} variant="outline" size="sm" disabled={isLoading}>
                 <ChevronsDownUp size={16} className="mr-2" /> Expand All Visible
             </Button>
-            <Button onClick={collapseAllNodes} variant="outline" size="sm">
+            <Button onClick={collapseAllNodes} variant="outline" size="sm" disabled={isLoading}>
                 <ChevronsUpDown size={16} className="mr-2" /> Collapse All
             </Button>
-            <Button onClick={handleStepUp} variant="outline" size="sm" disabled={!canStepUp}>
+            <Button onClick={handleStepUp} variant="outline" size="sm" disabled={!canStepUp || isLoading}>
                 <ArrowUpCircle size={16} className="mr-2" /> Step Up One Level
+            </Button>
+            <Button onClick={() => loadData()} variant="outline" size="sm" disabled={isLoading} title="Refresh Data">
+                <RefreshCw size={16} className="mr-2" /> Refresh Data
             </Button>
         </div>
       </div>
@@ -302,7 +342,7 @@ const CallStackVisualizer: React.FC = () => {
         })
       ) : (
         <p className="text-center text-gray-500 dark:text-gray-400 mt-8">
-          {searchTerm ? "No functions match your search." : (rootFunction ? "Root function not found or has no callees." : "No call stack data. Upload DB or clear filters.")}
+          {isLoading ? "Loading data..." : (searchTerm ? "No functions match your search." : (rootFunction ? "Root function not found or has no callees." : "No call stack data. Try refreshing or clearing filters."))}
         </p>
       )}
     </div>
