@@ -11,9 +11,14 @@ export const fetchCallStackData = async (folderPath: string): Promise<CallStackD
   }
 
   const url = `http://localhost:3030/xqanalyse/base?folder=${encodeURIComponent(folderPath)}`;
-  console.log(`Fetching data from: ${url}`);
+  console.log(`Fetching data from: ${url} using PUT method`);
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json', // It's good practice to include headers
+    },
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
