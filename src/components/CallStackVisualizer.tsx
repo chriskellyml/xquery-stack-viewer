@@ -229,12 +229,14 @@ const CallStackVisualizer: React.FC = () => {
                   placeholder="/path/to/your/xquery/project"
                   value={folderPath}
                   onChange={(e) => setFolderPath(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAnalyzeClick()}
+                  onKeyDown={(e) => e.key === 'Enter' && folderPath && handleAnalyzeClick()}
                   className="text-sm"
                 />
-                <Button onClick={handleAnalyzeClick} disabled={isLoading || !folderPath}>
-                    <FolderSearch size={16} className="mr-2" /> Analyze
-                </Button>
+                {folderPath && (
+                  <Button onClick={handleAnalyzeClick} disabled={isLoading}>
+                      <FolderSearch size={16} className="mr-2" /> Analyze
+                  </Button>
+                )}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Enter the absolute path to your project folder.</p>
           </div>
