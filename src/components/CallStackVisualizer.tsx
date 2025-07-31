@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import FunctionNode from './FunctionNode';
 import { CallStackNode, ExtendedXqyFunction, XqyInvocation } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle, RefreshCw, FolderSearch } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
-import { fetchCallStackData, CallStackData } from '@/utils/api';
+import { initializeAnalysis, fetchAnalysisResults, CallStackData } from '@/utils/api';
 
 const buildCallTree = (
   functions: ExtendedXqyFunction[],
@@ -81,30 +81,6 @@ const CallStackVisualizer: React.FC = () => {
   const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
   const [persistedRootPrefix, setPersistedRootPrefix] = useState<string | null>(null); 
 
-  const loadData = useCallback(async (path: string) => {
-    if (!path) {
-      showError("Please provide a folder path.");
-      return;
-    }
-    const loadingToastId = showLoading(`Analyzing folder: ${path}...`);
-    setIsLoading(true);
-    setFetchError(null);
-    try {
-      const data: CallStackData = await fetchCallStackData(path);
-      setAllFunctions(data.functions);
-      setAllInvocations(data.invocations);
-      showSuccess("Analysis complete. Data loaded successfully.");
-    } catch (error) {
-      console.error("Failed to fetch call stack data:", error);
-      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-      setFetchError(errorMessage);
-      showError(`Failed to load data: ${errorMessage}`);
-    } finally {
-      setIsLoading(false);
-      dismissToast(loadingToastId as string);
-    }
-  }, []);
-
   useEffect(() => {
     const tree = buildCallTree(allFunctions, allInvocations, rootFunction || undefined);
     setCallTree(tree);
@@ -113,14 +89,48 @@ const CallStackVisualizer: React.FC = () => {
     }
   }, [rootFunction, allFunctions, allInvocations]);
 
-  const handleAnalyzeClick = () => {
-    // Clear previous results and errors before new analysis
+  const handleAnalysis = async () => {
+    if (!folderPath) {
+      showError("Please provide a folder path.");
+      return;
+    }
+    
+    // Reset state for a new analysis
     setAllFunctions([]);
     setAllInvocations([]);
     setFetchError(null);
     setRootFunction("");
     setSearchTerm("");
-    loadData(folderPath);
+    setOpenNodes(new Set());
+
+    setIsLoading(true);
+    let toastId = showLoading("Initializing analysis... This may take a minute.");
+
+    try {
+      // Step 1: Initialize
+      await initializeAnalysis(folderPath);
+      
+      // Update toast for next step
+      dismissToast(toastId as string);
+      toastId = showLoading("Initialization complete. Fetching results...");
+
+      // Step 2: Fetch results
+      const data: CallStackData = await fetchAnalysisResults(folderPath);
+      setAllFunctions(data.functions);
+      setAllInvocations(data.invocations);
+      
+      dismissToast(toastId as string);
+      showSuccess("Analysis complete. Data loaded successfully.");
+
+    } catch (error) {
+      console.error("Failed during analysis process:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+      setFetchError(errorMessage);
+      dismissToast(toastId as string); // Dismiss loading toast on error
+      showError(`Analysis failed: ${errorMessage}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSetRootByClick = (functionName: string, clickedNodePrefix: string) => {
@@ -229,11 +239,11 @@ const CallStackVisualizer: React.FC = () => {
                   placeholder="/path/to/your/xquery/project"
                   value={folderPath}
                   onChange={(e) => setFolderPath(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && folderPath && handleAnalyzeClick()}
+                  onKeyDown={(e) => e.key === 'Enter' && folderPath && handleAnalysis()}
                   className="text-sm"
                 />
                 {folderPath && (
-                  <Button onClick={handleAnalyzeClick} disabled={isLoading}>
+                  <Button onClick={handleAnalysis} disabled={isLoading}>
                       <FolderSearch size={16} className="mr-2" /> Analyze
                   </Button>
                 )}
@@ -289,7 +299,7 @@ const CallStackVisualizer: React.FC = () => {
             <Button onClick={handleStepUp} variant="outline" size="sm" disabled={!canStepUp || isLoading}>
                 <ArrowUpCircle size={16} className="mr-2" /> Step Up
             </Button>
-            <Button onClick={() => loadData(folderPath)} variant="outline" size="sm" disabled={isLoading || !folderPath} title="Refresh Data">
+            <Button onClick={handleAnalysis} variant="outline" size="sm" disabled={isLoading || !folderPath} title="Refresh Data">
                 <RefreshCw size={16} className="mr-2" /> Refresh
             </Button>
         </div>
@@ -306,7 +316,7 @@ const CallStackVisualizer: React.FC = () => {
         <div className="p-4 max-w-6xl mx-auto text-center text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg">
           <p className="text-lg font-semibold">Error loading data</p>
           <p className="text-sm mt-1">{fetchError}</p>
-          <Button onClick={() => loadData(folderPath)} variant="outline" className="mt-4">
+          <Button onClick={handleAnalysis} variant="outline" className="mt-4">
             <RefreshCw size={16} className="mr-2" /> Try Again
           </Button>
         </div>
