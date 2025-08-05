@@ -48,3 +48,11 @@ export interface CallStackNode extends ExtendedXqyFunction {
   id: string;
   children: CallStackNode[];
 }
+
+export interface XqyFunctionSummary {
+  module: string;
+  name: string;
+  namespace: string;
+  parameters: string;
+  path: string;
+}
