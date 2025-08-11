@@ -52,25 +52,27 @@ export const initializeProject = async (folderPath: string): Promise<void> => {
 };
 
 /**
- * Step 3: Fetches the full analysis data (all functions and invocations)
- * needed to build the call stack tree.
+ * Step 3: Fetches the call stack data for a specific function.
  */
-export const fetchAnalysisData = async (folderPath: string): Promise<CallStackData> => {
+export const fetchStackData = async (folderPath: string, functionName: string): Promise<CallStackData> => {
   if (!folderPath) throw new Error("Folder path is required.");
-  // Note: This uses the same 'base' endpoint but expects a JSON response.
-  const url = `http://localhost:3030/xqanalyse/base?folder=${encodeURIComponent(folderPath)}`;
-  console.log(`Fetching full analysis data from: ${url}`);
+  if (!functionName) throw new Error("Function name is required.");
+
+  const url = `http://localhost:3030/xqanalyse/stack?folder=${encodeURIComponent(folderPath)}&function=${encodeURIComponent(functionName)}`;
+  console.log(`Fetching stack data from: ${url}`);
+  
   const response = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'GET',
   });
+
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Fetching analysis data failed: ${response.status}. ${errorText}`);
+    throw new Error(`Fetching stack data failed: ${response.status}. ${errorText}`);
   }
+  
   const data = await response.json();
   if (!data.functions || !data.invocations) {
-    throw new Error("Invalid data format received from analysis API.");
+    throw new Error("Invalid data format received from stack API.");
   }
   return data;
 };

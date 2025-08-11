@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { XCircle, ChevronsUpDown, ChevronsDownUp, ArrowUpCircle, RefreshCw, FolderSearch, Zap } from 'lucide-react';
 import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast';
-import { setBasePath, getFunctionSummaries, initializeProject, fetchAnalysisData, CallStackData } from '@/utils/api';
+import { setBasePath, getFunctionSummaries, initializeProject, fetchStackData, CallStackData } from '@/utils/api';
 import { FunctionSelector } from './FunctionSelector';
 
 const buildCallTree = (
@@ -142,7 +142,7 @@ const CallStackVisualizer: React.FC = () => {
     let toastId = showLoading(`Fetching analysis data for ${selectedFunctionName}...`);
     
     try {
-      const data: CallStackData = await fetchAnalysisData(folderPath);
+      const data: CallStackData = await fetchStackData(folderPath, selectedFunctionName);
       setAllFunctions(data.functions);
       setAllInvocations(data.invocations);
       setRootFunction(selectedFunctionName);
