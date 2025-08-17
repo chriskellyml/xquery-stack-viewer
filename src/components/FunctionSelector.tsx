@@ -20,7 +20,7 @@ import type { XqyFunctionSummary } from "@/types/xqy"
 
 interface FunctionSelectorProps {
   functions: XqyFunctionSummary[];
-  onSelect: (functionName: string) => void;
+  onSelect: (func: XqyFunctionSummary | null) => void;
   disabled?: boolean;
 }
 
@@ -39,7 +39,7 @@ export function FunctionSelector({ functions, onSelect, disabled }: FunctionSele
           disabled={disabled}
         >
           {value
-            ? functions.find((func) => func.name.toLowerCase() === value)?.name
+            ? functions.find((func) => func.name === value)?.name
             : "Select a function to analyze..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -55,16 +55,16 @@ export function FunctionSelector({ functions, onSelect, disabled }: FunctionSele
                   key={func.name}
                   value={func.name}
                   onSelect={(currentValue) => {
-                    const selectedName = functions.find(f => f.name.toLowerCase() === currentValue)?.name || "";
-                    setValue(selectedName ? currentValue : "");
-                    onSelect(selectedName);
+                    const selectedFunc = functions.find(f => f.name.toLowerCase() === currentValue);
+                    setValue(selectedFunc ? selectedFunc.name : "");
+                    onSelect(selectedFunc || null);
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === func.name.toLowerCase() ? "opacity-100" : "opacity-0"
+                      value === func.name ? "opacity-100" : "opacity-0"
                     )}
                   />
                   <span title={func.path}>{func.name}</span>

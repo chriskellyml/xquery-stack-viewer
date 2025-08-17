@@ -131,24 +131,25 @@ const CallStackVisualizer: React.FC = () => {
     }
   };
 
-  const handleFunctionSelect = async (selectedFunctionName: string) => {
-    if (!selectedFunctionName) {
+  const handleFunctionSelect = async (selectedFunction: XqyFunctionSummary | null) => {
+    if (!selectedFunction) {
       setRootFunction("");
+      setCallTree([]);
       return;
     }
     
     setIsLoading(true);
     setFetchError(null);
-    let toastId = showLoading(`Fetching analysis data for ${selectedFunctionName}...`);
+    let toastId = showLoading(`Fetching analysis data for ${selectedFunction.name}...`);
     
     try {
-      const data: CallStackData = await fetchStackData(folderPath, selectedFunctionName);
+      const data: CallStackData = await fetchStackData(folderPath, selectedFunction.name, selectedFunction.module);
       setAllFunctions(data.functions);
       setAllInvocations(data.invocations);
-      setRootFunction(selectedFunctionName);
+      setRootFunction(selectedFunction.name);
       setPersistedRootPrefix("1."); // Reset prefix for new analysis
       dismissToast(toastId as string);
-      showSuccess(`Analysis complete for ${selectedFunctionName}.`);
+      showSuccess(`Analysis complete for ${selectedFunction.name}.`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
       setFetchError(errorMessage);

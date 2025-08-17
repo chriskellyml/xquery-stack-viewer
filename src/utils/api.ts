@@ -52,13 +52,14 @@ export const initializeProject = async (folderPath: string): Promise<void> => {
 };
 
 /**
- * Step 3: Fetches the call stack data for a specific function.
+ * Step 3: Fetches the call stack data for a specific function in a specific module.
  */
-export const fetchStackData = async (folderPath: string, functionName: string): Promise<CallStackData> => {
+export const fetchStackData = async (folderPath: string, functionName: string, moduleName: string): Promise<CallStackData> => {
   if (!folderPath) throw new Error("Folder path is required.");
   if (!functionName) throw new Error("Function name is required.");
+  if (!moduleName) throw new Error("Module name is required.");
 
-  const url = `http://localhost:3030/xqanalyse/stack?folder=${encodeURIComponent(folderPath)}&function=${encodeURIComponent(functionName)}`;
+  const url = `http://localhost:3030/xqanalyse/stack?folder=${encodeURIComponent(folderPath)}&function=${encodeURIComponent(functionName)}&module=${encodeURIComponent(moduleName)}`;
   console.log(`Fetching stack data from: ${url}`);
   
   const response = await fetch(url, {
