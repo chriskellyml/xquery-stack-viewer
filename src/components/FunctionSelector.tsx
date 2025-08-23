@@ -26,7 +26,9 @@ interface FunctionSelectorProps {
 
 export function FunctionSelector({ functions, onSelect, disabled }: FunctionSelectorProps) {
   const [open, setOpen] = React.useState(false)
-  const [value, setValue] = React.useState("")
+  const [selectedFunction, setSelectedFunction] = React.useState<XqyFunctionSummary | null>(null);
+
+  const getUniqueFuncId = (func: XqyFunctionSummary) => `${func.module}::${func.name}`;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -38,8 +40,8 @@ export function FunctionSelector({ functions, onSelect, disabled }: FunctionSele
           className="w-full justify-between"
           disabled={disabled}
         >
-          {value
-            ? functions.find((func) => func.name === value)?.name
+          {selectedFunction
+            ? `${selectedFunction.module}: ${selectedFunction.name}`
             : "Select a function to analyze..."}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -52,21 +54,23 @@ export function FunctionSelector({ functions, onSelect, disabled }: FunctionSele
             <CommandGroup>
               {functions.map((func) => (
                 <CommandItem
-                  key={func.name}
-                  value={func.name}
-                  onSelect={(currentValue) => {
-                    const selectedFunc = functions.find(f => f.name.toLowerCase() === currentValue);
-                    setValue(selectedFunc ? selectedFunc.name : "");
-                    onSelect(selectedFunc || null);
+                  key={getUniqueFuncId(func)}
+                  value={getUniqueFuncId(func)}
+                  onSelect={() => {
+                    setSelectedFunction(func);
+                    onSelect(func);
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === func.name ? "opacity-100" : "opacity-0"
+                      selectedFunction && getUniqueFuncId(selectedFunction) === getUniqueFuncId(func)
+                        ? "opacity-100"
+                        : "opacity-0"
                     )}
                   />
+                  <span className="text-muted-foreground mr-2">{func.module}:</span>
                   <span title={func.path}>{func.name}</span>
                 </CommandItem>
               ))}

@@ -9,7 +9,7 @@ interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
   levelPrefix: string;
-  onSetAsRoot?: (functionName: string, currentFullPrefix: string) => void; // Modified signature
+  onSetAsRoot?: (functionName: string, moduleName: string, currentFullPrefix: string) => void;
   openNodes: Set<string>;
   onToggleNode: (nodeId: string) => void;
 }
@@ -24,7 +24,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
   const handleSetRootClick = (event: React.MouseEvent) => {
     event.stopPropagation(); 
     if (onSetAsRoot) {
-      onSetAsRoot(node.name, levelPrefix); // Pass the current levelPrefix
+      onSetAsRoot(node.name, node.filename, levelPrefix);
     }
   };
 
@@ -65,9 +65,9 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
               )}
 
               <GitFork className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500 shrink-0" />
+              <span className="text-gray-500 truncate hidden md:inline" title={`Module: ${node.filename}`}>{node.filename}:</span>
               <span className="font-medium truncate" title={node.name}>{node.name}</span>
               {node.private ? <Lock size={12} className="text-amber-600 shrink-0" title="Private Function"/> : <Unlock size={12} className="text-green-600 shrink-0" title="Public Function"/>}
-              <span className="text-gray-500 truncate hidden md:inline" title={`Module: ${node.filename}`}>[{node.filename}]</span>
               <span className="text-gray-400 truncate hidden sm:inline" title={`Location: ${node.file}:${node.line}`}>({node.file}:{node.line})</span>
               
               <span className="flex-grow"></span> 
