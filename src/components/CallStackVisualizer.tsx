@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import FunctionNode from './FunctionNode';
-import { CallStackNode, ExtendedXqyFunction, XqyInvocation, XqyFunctionSummary } from '@/types/xqy';
+import { CallStackNode, ApiFunction, ApiInvocation, XqyFunctionSummary } from '@/types/xqy';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ChevronsUpDown, ChevronsDownUp, RefreshCw, FolderSearch, Zap } from 'lucide-react';
@@ -8,27 +8,28 @@ import { showError, showSuccess, showLoading, dismissToast } from '@/utils/toast
 import { setBasePath, getFunctionSummaries, initializeProject, fetchStackData, CallStackData } from '@/utils/api';
 import { FunctionSelector } from './FunctionSelector';
 
-const getUniqueFuncId = (name: string, module: string) => `${module}::${name}`;
+const getUniqueFuncId = (name: string, filePath: string) => `${filePath}::${name}`;
 
 const buildCallTree = (
-  functions: ExtendedXqyFunction[],
-  invocations: XqyInvocation[],
+  functions: ApiFunction[],
+  invocations: ApiInvocation[],
   rootFunctionName: string,
-  rootModule: string
+  rootFilePath: string
 ): CallStackNode[] => {
-  const functionMap = new Map<string, ExtendedXqyFunction>(
-    functions.map(f => [getUniqueFuncId(f.name, f.filename), f])
+  const functionMap = new Map<string, ApiFunction>(
+    functions.map(f => [getUniqueFuncId(f.name, f.filePath), f])
   );
 
   const childrenMap = new Map<string, string[]>();
 
   invocations.forEach(inv => {
-    const callerModule = inv.filename;
-    const callerId = getUniqueFuncId(inv.caller, callerModule);
+    const callerId = getUniqueFuncId(inv.callerName, inv.callerFilePath);
     
-    // If invoked_module is not present, it's a local call within the same module
-    const invokedModule = inv.invoked_module || callerModule;
-    const invokedId = getUniqueFuncId(inv.invoked_function, invokedModule);
+    // If invokedFilePath is null, it's a local call within the same module
+    const invokedFilePath = inv.invokedFilePath || inv.callerFilePath;
+    // The API still includes arity in the invokedName, so we must strip it.
+    const cleanInvokedName = inv.invokedName.split('#')[0];
+    const invokedId = getUniqueFuncId(cleanInvokedName, invokedFilePath);
 
     if (!childrenMap.has(callerId)) {
       childrenMap.set(callerId, []);
@@ -44,7 +45,10 @@ const buildCallTree = (
     visited.add(funcId);
 
     const func = functionMap.get(funcId);
-    if (!func) return null;
+    if (!func) {
+      console.error(`Function data not found for ID: ${funcId}. It will be missing from the tree.`);
+      return null;
+    }
 
     const childrenIds = childrenMap.get(funcId) || [];
     const children = childrenIds
@@ -54,7 +58,7 @@ const buildCallTree = (
     return { ...func, id: funcId, children };
   };
 
-  const rootFuncId = getUniqueFuncId(rootFunctionName, rootModule);
+  const rootFuncId = getUniqueFuncId(rootFunctionName, rootFilePath);
   const rootNode = buildNode(rootFuncId);
   return rootNode ? [rootNode] : [];
 };
@@ -75,21 +79,21 @@ const CallStackVisualizer: React.FC = () => {
   const [projectLoaded, setProjectLoaded] = useState<boolean>(false);
   const [functionSummaries, setFunctionSummaries] = useState<XqyFunctionSummary[]>([]);
   
-  const [allFunctions, setAllFunctions] = useState<ExtendedXqyFunction[]>([]);
-  const [allInvocations, setAllInvocations] = useState<XqyInvocation[]>([]);
+  const [allFunctions, setAllFunctions] = useState<ApiFunction[]>([]);
+  const [allInvocations, setAllInvocations] = useState<ApiInvocation[]>([]);
   
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   
   const [callTree, setCallTree] = useState<CallStackNode[]>([]);
-  const [rootFunction, setRootFunction] = useState<{ name: string; module: string } | null>(null);
+  const [rootFunction, setRootFunction] = useState<{ name: string; filePath: string } | null>(null);
   const [openNodes, setOpenNodes] = useState<Set<string>>(new Set());
   const [persistedRootPrefix, setPersistedRootPrefix] = useState<string | null>(null); 
 
   useEffect(() => {
     if (rootFunction && allFunctions.length > 0) {
-      const tree = buildCallTree(allFunctions, allInvocations, rootFunction.name, rootFunction.module);
+      const tree = buildCallTree(allFunctions, allInvocations, rootFunction.name, rootFunction.filePath);
       setCallTree(tree);
       setOpenNodes(new Set()); // Collapse nodes on new root
     } else {
@@ -160,7 +164,7 @@ const CallStackVisualizer: React.FC = () => {
       const data: CallStackData = await fetchStackData(folderPath, selectedFunction.name, selectedFunction.module);
       setAllFunctions(data.functions);
       setAllInvocations(data.invocations);
-      setRootFunction({ name: selectedFunction.name, module: selectedFunction.module });
+      setRootFunction({ name: selectedFunction.name, filePath: selectedFunction.path });
       setPersistedRootPrefix("1."); // Reset prefix for new analysis
       dismissToast(toastId as string);
       showSuccess(`Analysis complete for ${selectedFunction.name}.`);
@@ -174,8 +178,8 @@ const CallStackVisualizer: React.FC = () => {
     }
   };
 
-  const handleSetRootByClick = (functionName: string, moduleName: string, clickedNodePrefix: string) => {
-    setRootFunction({ name: functionName, module: moduleName });
+  const handleSetRootByClick = (functionName: string, filePath: string, clickedNodePrefix: string) => {
+    setRootFunction({ name: functionName, filePath: filePath });
     setPersistedRootPrefix(clickedNodePrefix); 
     showSuccess(`Set "${functionName}" as root.`);
   };

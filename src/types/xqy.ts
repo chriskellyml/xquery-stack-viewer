@@ -1,58 +1,41 @@
-export interface XqyModule {
-  filename: string;
-  file: string;
-  prefix: string;
-  uri: string;
+// This interface matches the objects in the `functions` array from the API
+export interface ApiFunction {
   filePath: string;
-  numFunctions: number;
-  numLines: number;
-}
-
-export interface XqyFunction {
-  filename: string;
-  file: string;
   name: string;
+  arity: number;
   line: number;
   private: boolean;
   loc: number;
-}
-
-export interface ExtendedXqyFunction extends XqyFunction {
   numInvocations: number;
   invertedLoc: number;
-  // We'll add callees here when processing the data
-  callees?: ExtendedXqyFunction[]; 
-  // We'll add parameters here
-  parameters?: XqyParameter[];
+  parameters: {
+    name: string;
+    type: string;
+  }[];
 }
 
-export interface XqyInvocation {
-  filename: string;
-  file: string;
-  caller: string; // Name of the calling function
-  invoked_module: string; // Can be null if it's a local function call
-  invoked_function: string; // Name of the invoked function
+// This interface matches the objects in the `invocations` array from the API
+export interface ApiInvocation {
+  callerFilePath: string;
+  callerName: string;
+  callerArity: number;
+  invokedFilePath: string | null; // Can be null for local calls
+  invokedName: string;
+  invokedArity: number | null;
 }
 
-export interface XqyParameter {
-  filename: string;
-  file: string;
-  function_name: string;
-  parameter: string;
-  type: string;
-}
-
-// Sample data structure for the visualization
-// This would be built from your database queries
-export interface CallStackNode extends ExtendedXqyFunction {
+// This is the internal representation of a node in our call tree
+export interface CallStackNode extends ApiFunction {
   id: string;
   children: CallStackNode[];
 }
 
+// This matches the function summaries for the dropdown selector
 export interface XqyFunctionSummary {
   module: string;
   name: string;
   namespace: string;
   parameters: string;
   path: string;
+  arity: number;
 }

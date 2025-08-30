@@ -9,7 +9,7 @@ interface FunctionNodeProps {
   node: CallStackNode;
   level: number;
   levelPrefix: string;
-  onSetAsRoot?: (functionName: string, moduleName: string, currentFullPrefix: string) => void;
+  onSetAsRoot?: (functionName: string, filePath: string, currentFullPrefix: string) => void;
   openNodes: Set<string>;
   onToggleNode: (nodeId: string) => void;
 }
@@ -20,11 +20,12 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
   const isInternallyExpandable = hasParameters || hasChildren; 
 
   const indentationClass = `pl-${level * 2}`;
+  const fileBasename = node.filePath.split('/').pop() || node.filePath;
 
   const handleSetRootClick = (event: React.MouseEvent) => {
     event.stopPropagation(); 
     if (onSetAsRoot) {
-      onSetAsRoot(node.name, node.filename, levelPrefix);
+      onSetAsRoot(node.name, node.filePath, levelPrefix);
     }
   };
 
@@ -65,10 +66,10 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
               )}
 
               <GitFork className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-gray-500 shrink-0" />
-              <span className="text-gray-500 truncate hidden md:inline" title={`Module: ${node.filename}`}>{node.filename}:</span>
+              <span className="text-gray-500 truncate hidden md:inline" title={`Module: ${fileBasename}`}>{fileBasename}:</span>
               <span className="font-medium truncate" title={node.name}>{node.name}</span>
               {node.private ? <Lock size={12} className="text-amber-600 shrink-0" title="Private Function"/> : <Unlock size={12} className="text-green-600 shrink-0" title="Public Function"/>}
-              <span className="text-gray-400 truncate hidden sm:inline" title={`Location: ${node.file}:${node.line}`}>({node.file}:{node.line})</span>
+              <span className="text-gray-400 truncate hidden sm:inline" title={`Location: ${fileBasename}:${node.line}`}>({fileBasename}:{node.line})</span>
               
               <span className="flex-grow"></span> 
               
@@ -84,7 +85,7 @@ const FunctionNode: React.FC<FunctionNodeProps> = ({ node, level, levelPrefix, o
                     <h5 className="font-semibold mt-0.5 mb-0.5 flex items-center"><Info size={12} className="mr-1 text-purple-500" />Parameters:</h5>
                     <ul className="list-disc list-inside pl-1">
                       {node.parameters!.map((param, index) => (
-                        <li key={index} className="truncate" title={`${param.parameter}: ${param.type}`}>{param.parameter}: {param.type}</li>
+                        <li key={index} className="truncate" title={`${param.name}: ${param.type}`}>{param.name}: {param.type}</li>
                       ))}
                     </ul>
                   </div>

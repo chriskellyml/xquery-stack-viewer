@@ -1,8 +1,8 @@
-import type { ExtendedXqyFunction, XqyInvocation, XqyFunctionSummary } from '@/types/xqy';
+import type { ApiFunction, ApiInvocation, XqyFunctionSummary } from '@/types/xqy';
 
 export interface CallStackData {
-  functions: ExtendedXqyFunction[];
-  invocations: XqyInvocation[];
+  functions: ApiFunction[];
+  invocations: ApiInvocation[];
 }
 
 /**
